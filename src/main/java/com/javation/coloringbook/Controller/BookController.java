@@ -1,5 +1,6 @@
 package com.javation.coloringbook.Controller;
 
+import com.javation.coloringbook.DTO.BookResponseDTO;
 import com.javation.coloringbook.Entity.Books;
 import com.javation.coloringbook.Entity.ImageBooks;
 import com.javation.coloringbook.Service.BookService;
@@ -23,9 +24,9 @@ public class BookController {
     private final ImageBooksService imageBooksService;
 
     @PostMapping
-    public ResponseEntity<Books> postBook (@RequestParam Long userId, @RequestParam List<MultipartFile> files) throws IOException {
+    public ResponseEntity<?> postBook (@RequestParam Long userId, @RequestParam List<MultipartFile> files) throws IOException {
         Books books = bookService.createBookWithImages(userId, files);
-        return ResponseEntity.status(HttpStatus.CREATED).body(books);
+        return ResponseEntity.ok(new BookResponseDTO(books));
     }
 
     @GetMapping("/{userId}")
@@ -41,8 +42,13 @@ public class BookController {
     }
 
     @GetMapping("/{bookId}/download-url")
-    public ResponseEntity<String> getDownloadUrl(@PathVariable Long bookId){
+    public ResponseEntity<byte[]> getDownloadUrl(@PathVariable Long bookId){
         Books books = bookService.findBookById(bookId);
-        return ResponseEntity.ok(books.getDownloadUrl());
+        byte[] pdfBytes = books.getDownloadUrl();
+
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/pdf")
+                .header("Content-Disposition", "inline; filename=\"livro_" + books.getId() + ".pdf\"")
+                .body(pdfBytes);
     }
 }

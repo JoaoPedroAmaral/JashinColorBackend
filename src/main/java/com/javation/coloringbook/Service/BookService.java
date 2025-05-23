@@ -57,7 +57,7 @@ public class BookService {
         return book;
     }
 
-    public String generateBookDownloadUrl(Books book) throws Exception {
+    public byte[] generateBookDownloadUrl(Books book) throws Exception {
         List<ImageBooks> images = imageBooksRepository.findByBookIdIdOrderByOrderIndexAsc(book.getId());
 
         if (images.isEmpty()) {
@@ -68,11 +68,11 @@ public class BookService {
 
         String downloadUrl = cloudinaryService.uploadPdf(pdfBytes, "livro_" + book.getId());
 
-        book.setDownloadUrl(downloadUrl);
+        book.setDownloadUrl(pdfBytes);
         book.setStatusPay(BookPaymentStatus.PAID);
         booksRepository.save(book);
 
-        return downloadUrl;
+        return pdfBytes;
     }
 
 

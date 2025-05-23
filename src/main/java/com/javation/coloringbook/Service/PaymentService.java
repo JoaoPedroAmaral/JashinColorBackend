@@ -44,8 +44,7 @@ public class PaymentService {
             book.setStatusPay(com.javation.coloringbook.Entity.BookPaymentStatus.PAID);
 
 
-            String downloadUrl = bookService.generateBookDownloadUrl(book);
-            book.setDownloadUrl(downloadUrl);
+            bookService.generateBookDownloadUrl(book);
         } catch (Exception e) {
             payment.setStatusPay(TransactionStatus.FAILED);
             paymentRepository.save(payment);

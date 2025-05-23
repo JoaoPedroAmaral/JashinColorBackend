@@ -35,8 +35,8 @@ public class Books {
     @Column(name = "total_pages")
     private Integer totalPages;
 
-    @Column(name = "download_url")
-    private String downloadUrl;
+    @Column(name = "download_url", columnDefinition = "LONGBLOB")
+    private byte[] downloadUrl;
 
     @OneToMany(mappedBy = "bookId", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ImageBooks> images;

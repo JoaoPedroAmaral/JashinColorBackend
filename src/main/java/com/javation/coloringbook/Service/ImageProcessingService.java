@@ -8,8 +8,8 @@ import java.awt.image.BufferedImage;
 @Service
 public class ImageProcessingService {
 
-    private static final int MAX_WIDTH = 2000;
-    private static final int MAX_HEIGHT = 2000;
+    private static final int MAX_WIDTH = 3000;
+    private static final int MAX_HEIGHT = 3000;
 
     /**
      * Converte uma imagem para um estilo sketch aplicando escala de cinza,
@@ -36,10 +36,13 @@ public class ImageProcessingService {
         }
 
         BufferedImage blurred;
-        if (width > 1800 || height > 1800) {
-            blurred = applyBoxBlur(gray); // Mais detalhes
+        if(width > 2500 || height > 2500){
+            blurred = gray; // mais fino
+        }
+        else if (width > 1800 || height > 1800) {
+            blurred = applyBoxBlur(applyBoxBlur(applyBoxBlur(gray))); // menos detalhe
         } else {
-            blurred = applyBoxBlur(applyBoxBlur(applyBoxBlur(gray))); // Menos detalhes, traço mais fino
+            blurred = applyBoxBlur(gray);
         }
 
         BufferedImage edges = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
@@ -57,10 +60,13 @@ public class ImageProcessingService {
         };
 
         int threshold;
-        if (width > 1800 || height > 1800) {
-            threshold = 30; // Mais detalhes
+        if(width > 2500 || height > 2500){
+            threshold = 35; // Mais detalhes
+        }
+        else if (width > 1800 || height > 1800) {
+            threshold = 40;
         } else {
-            threshold = 50; // Menos detalhes, traço mais fino
+            threshold = 60; // Menos detalhes, traço mais fino
         }
 
         for (int y = 1; y < height - 1; y++) {
