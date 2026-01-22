@@ -14,6 +14,9 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class Users {
 
+    @Transient
+    public String password;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
