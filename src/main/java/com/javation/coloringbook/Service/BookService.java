@@ -60,11 +60,14 @@ public class BookService {
     public byte[] generateBookDownloadUrl(Books book) throws Exception {
         List<ImageBooks> images = imageBooksRepository.findByBookIdIdOrderByOrderIndexAsc(book.getId());
 
+
         if (images.isEmpty()) {
             throw new IllegalStateException("Este livro não possui imagens.");
         }
 
-        byte[] pdfBytes = pdfGeneratorService.generatePdfFromImageUrls(images);
+        // Em generateBookDownloadUrl():
+        String bookTitle = "Livro de Colorir - " + book.getUser().getEmail();
+        byte[] pdfBytes = pdfGeneratorService.generatePdfFromImageUrls(images, bookTitle);
 
         String downloadUrl = cloudinaryService.uploadPdf(pdfBytes, "livro_" + book.getId());
 

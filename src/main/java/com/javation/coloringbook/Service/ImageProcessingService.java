@@ -1,166 +1,165 @@
 package com.javation.coloringbook.Service;
 
+
 import org.springframework.stereotype.Service;
 
-import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.Arrays;
 
+/**
+ * Service responsible for converting images into clean,
+ * black and white coloring book sketches.
+ * Optimized for performance and low memory consumption.
+ */
 @Service
 public class ImageProcessingService {
 
-    private static final int MAX_WIDTH = 3000;
-    private static final int MAX_HEIGHT = 3000;
+    private static final int THRESHOLD_VALUE = 80;
+    private static final int CONTRAST_FACTOR = 2;
 
     /**
-     * Converte uma imagem para um estilo sketch aplicando escala de cinza,
-     * blur e detecção de bordas com filtro Sobel.
+     * Main pipeline method to convert an original image into a sketch.
      *
-     * @param original imagem original
-     * @return imagem em estilo sketch
+     * @param original The uploaded BufferedImage.
+     * @return A pure black and white BufferedImage (Coloring book style).
      */
-    public static BufferedImage convertToSketch(BufferedImage original) {
-        BufferedImage resized = resizeImageIfNeeded(original, MAX_WIDTH, MAX_HEIGHT);
-        int width = resized.getWidth();
-        int height = resized.getHeight();
-
-        // Passo 1: converter para escala de cinza
-        BufferedImage gray = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                Color c = new Color(resized.getRGB(x, y));
-                int grayLevel = (int)(0.299 * c.getRed() + 0.587 * c.getGreen() + 0.114 * c.getBlue());
-                int grayRGB = new Color(grayLevel, grayLevel, grayLevel).getRGB();
-                gray.setRGB(x, y, grayRGB);
-            }
+    public BufferedImage convertToSketch(BufferedImage original) {
+        if (original == null) {
+            throw new IllegalArgumentException("Original image cannot be null");
         }
 
-        BufferedImage blurred;
-        if(width > 2500 || height > 2500){
-            blurred = gray; // mais fino
+        int width = original.getWidth();
+        int height = original.getHeight();
+        int totalPixels = width * height;
+
+        // 1. Extract raw pixels (Fastest way to read image data)
+        int[] pixels = new int[totalPixels];
+        original.getRGB(0, 0, width, height, pixels, 0, width);
+
+        // 2. Execute the processing pipeline using primitive arrays for speed
+        int[] grayPixels = convertToGrayscale(pixels);
+        int[] edgePixels = applyEdgeDetection(grayPixels, width, height);
+        increaseContrast(edgePixels);
+        removeNoise(edgePixels, width, height);
+        int[] finalPixels = thresholdToBlackAndWhite(edgePixels);
+
+        // 3. Reconstruct the final pure B&W image
+        BufferedImage result = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        result.setRGB(0, 0, width, height, finalPixels, 0, width);
+
+        return result;
+    }
+
+    /**
+     * Converts RGB pixels to grayscale using fast bitwise operations.
+     */
+    private int[] convertToGrayscale(int[] pixels) {
+        int[] gray = new int[pixels.length];
+        for (int i = 0; i < pixels.length; i++) {
+            int p = pixels[i];
+            int r = (p >> 16) & 0xff;
+            int g = (p >> 8) & 0xff;
+            int b = p & 0xff;
+
+            // Fast luminosity formula using integer math instead of floats
+            gray[i] = (r * 77 + g * 150 + b * 29) >> 8;
         }
-        else if (width > 1800 || height > 1800) {
-            blurred = applyBoxBlur(applyBoxBlur(applyBoxBlur(gray))); // menos detalhe
-        } else {
-            blurred = applyBoxBlur(gray);
-        }
+        return gray;
+    }
 
-        BufferedImage edges = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
+    /**
+     * Applies a Sobel operator manually to detect edges.
+     */
+    private int[] applyEdgeDetection(int[] gray, int width, int height) {
+        int[] edges = new int[gray.length];
 
-        int[][] sobelX = {
-                {-1, 0, 1},
-                {-2, 0, 2},
-                {-1, 0, 1}
-        };
-
-        int[][] sobelY = {
-                {-1, -2, -1},
-                { 0,  0,  0},
-                { 1,  2,  1}
-        };
-
-        int threshold;
-        if(width > 2500 || height > 2500){
-            threshold = 35; // Mais detalhes
-        }
-        else if (width > 1800 || height > 1800) {
-            threshold = 40;
-        } else {
-            threshold = 60; // Menos detalhes, traço mais fino
-        }
-
+        // Loop avoiding the borders (1 to width-1, 1 to height-1)
         for (int y = 1; y < height - 1; y++) {
             for (int x = 1; x < width - 1; x++) {
-                int pixelX = 0;
-                int pixelY = 0;
+                int p00 = gray[(y - 1) * width + (x - 1)];
+                int p01 = gray[(y - 1) * width + x];
+                int p02 = gray[(y - 1) * width + (x + 1)];
+                int p10 = gray[y * width + (x - 1)];
+                // p11 is the center pixel, skipped in Sobel
+                int p12 = gray[y * width + (x + 1)];
+                int p20 = gray[(y + 1) * width + (x - 1)];
+                int p21 = gray[(y + 1) * width + x];
+                int p22 = gray[(y + 1) * width + (x + 1)];
 
-                for (int i = -1; i <= 1; i++) {
-                    for (int j = -1; j <= 1; j++) {
-                        int rgb = new Color(blurred.getRGB(x + j, y + i)).getRed();
-                        pixelX += sobelX[i + 1][j + 1] * rgb;
-                        pixelY += sobelY[i + 1][j + 1] * rgb;
-                    }
-                }
+                // Sobel X and Y gradients
+                int gx = -p00 + p02 - 2 * p10 + 2 * p12 - p20 + p22;
+                int gy = -p00 - 2 * p01 - p02 + p20 + 2 * p21 + p22;
 
-                int magnitude = (int) Math.min(255, Math.sqrt(pixelX * pixelX + pixelY * pixelY));
+                // Absolute sum is faster than Math.sqrt(gx*gx + gy*gy) and highly effective here
+                int magnitude = Math.abs(gx) + Math.abs(gy);
 
-                int edgeColor = (magnitude > threshold) ? 0 : 255;
-
-                int edgeRGB = new Color(edgeColor, edgeColor, edgeColor).getRGB();
-                edges.setRGB(x, y, edgeRGB);
+                edges[y * width + x] = Math.min(255, magnitude);
             }
         }
-
         return edges;
     }
 
     /**
-     * Redimensiona a imagem se exceder as dimensões máximas.
+     * Amplifies the edge strengths to make lines pop.
      */
-    private static BufferedImage resizeImageIfNeeded(BufferedImage original, int maxWidth, int maxHeight) {
-        int width = original.getWidth();
-        int height = original.getHeight();
-
-        if (width <= maxWidth && height <= maxHeight) {
-            return original;
+    private void increaseContrast(int[] edges) {
+        for (int i = 0; i < edges.length; i++) {
+            int val = edges[i] * CONTRAST_FACTOR;
+            edges[i] = Math.min(255, val); // Cap at max grayscale value
         }
-
-        double widthRatio = (double) maxWidth / width;
-        double heightRatio = (double) maxHeight / height;
-        double ratio = Math.min(widthRatio, heightRatio);
-
-        int newWidth = (int)(width * ratio);
-        int newHeight = (int)(height * ratio);
-
-        BufferedImage resized = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = resized.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.drawImage(original, 0, 0, newWidth, newHeight, null);
-        g.dispose();
-
-        return resized;
     }
 
     /**
-     * Aplica um blur simples (Box Blur 3x3) para reduzir ruído.
+     * Removes isolated pixels and weak artifacts to clean the drawing.
+     * Operates in-place.
      */
-    private static BufferedImage applyBoxBlur(BufferedImage img) {
-        int width = img.getWidth();
-        int height = img.getHeight();
-        BufferedImage blurred = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
-
-        int[][] kernel = {
-                {1, 1, 1},
-                {1, 1, 1},
-                {1, 1, 1}
-        };
-        int kernelSum = 9; // soma total da máscara
+    private void removeNoise(int[] edges, int width, int height) {
+        int[] temp = new int[edges.length];
+        System.arraycopy(edges, 0, temp, 0, edges.length);
 
         for (int y = 1; y < height - 1; y++) {
             for (int x = 1; x < width - 1; x++) {
-                int sum = 0;
+                int idx = y * width + x;
 
-                for (int ky = -1; ky <= 1; ky++) {
-                    for (int kx = -1; kx <= 1; kx++) {
-                        int rgb = new Color(img.getRGB(x + kx, y + ky)).getRed();
-                        sum += kernel[ky + 1][kx + 1] * rgb;
+                // If it's considered an edge, check its neighborhood
+                if (temp[idx] > THRESHOLD_VALUE / 2) {
+                    int neighbors = 0;
+                    if (temp[idx - width - 1] > 0) neighbors++;
+                    if (temp[idx - width] > 0) neighbors++;
+                    if (temp[idx - width + 1] > 0) neighbors++;
+                    if (temp[idx - 1] > 0) neighbors++;
+                    if (temp[idx + 1] > 0) neighbors++;
+                    if (temp[idx + width - 1] > 0) neighbors++;
+                    if (temp[idx + width] > 0) neighbors++;
+                    if (temp[idx + width + 1] > 0) neighbors++;
+
+                    // If it has fewer than 2 connected edge pixels, it's a stray dot (noise)
+                    if (neighbors < 2) {
+                        edges[idx] = 0;
                     }
                 }
-
-                int avg = sum / kernelSum;
-                int gray = clamp(avg);
-                int rgb = new Color(gray, gray, gray).getRGB();
-                blurred.setRGB(x, y, rgb);
             }
         }
-
-        return blurred;
     }
 
     /**
-     * Garante que o valor fique entre 0 e 255.
+     * Converts the continuous edge map into pure Black (outlines) and White (background).
      */
-    private static int clamp(int value) {
-        return Math.min(255, Math.max(0, value));
+    private int[] thresholdToBlackAndWhite(int[] edges) {
+        int[] binaryPixels = new int[edges.length];
+
+        int pureWhite = 0xFFFFFFFF;
+        int pureBlack = 0xFF000000;
+
+        // Default fill everything with white (handles edges of the image)
+        Arrays.fill(binaryPixels, pureWhite);
+
+        for (int i = 0; i < edges.length; i++) {
+            // High edge magnitude = Line (Black), Low magnitude = Background (White)
+            if (edges[i] > THRESHOLD_VALUE) {
+                binaryPixels[i] = pureBlack;
+            }
+        }
+        return binaryPixels;
     }
 }

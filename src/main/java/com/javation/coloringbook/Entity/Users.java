@@ -22,7 +22,7 @@ public class Users {
     private String email;
 
     @Column(name="password_hash", nullable = false)
-    private String passowdHash;
+    private String passwordHash;
 
     @Column(name = "create_at")
     private LocalDateTime createAt = LocalDateTime.now();
