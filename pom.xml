@@ -45,13 +45,8 @@
 			<artifactId>boofcv-io</artifactId>
 			<version>0.43</version>
 		</dependency>
-		<dependency>
-			<groupId>com.mercadopago</groupId>
-			<artifactId>sdk-java</artifactId>
-			<version>2.1.14</version>
-		</dependency>
 
-		<!-- Para gerar QR Code PIX (opcional) -->
+		<!-- Para gerar QR Code PIX -->
 		<dependency>
 			<groupId>com.google.zxing</groupId>
 			<artifactId>core</artifactId>
@@ -83,6 +78,11 @@
 			<groupId>io.github.cdimascio</groupId>
 			<artifactId>dotenv-java</artifactId>
 			<version>3.0.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.mercadopago</groupId>
+			<artifactId>sdk-java</artifactId>
+			<version>2.1.7</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

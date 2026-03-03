@@ -24,8 +24,8 @@ public class BookController {
     private final ImageBooksService imageBooksService;
 
     @PostMapping
-    public ResponseEntity<?> postBook (@RequestParam Long userId, @RequestParam List<MultipartFile> files) throws IOException {
-        Books books = bookService.createBookWithImages(userId, files);
+    public ResponseEntity<?> postBook (@RequestParam Long userId, @RequestParam String title, @RequestParam List<MultipartFile> files) throws IOException {
+        Books books = bookService.createBookWithImages(userId, title, files);
         return ResponseEntity.ok(new BookResponseDTO(books));
     }
 

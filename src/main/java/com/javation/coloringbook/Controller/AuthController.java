@@ -87,13 +87,9 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest registerRequest) {
         try {
-            // Verificar se usuário já existe
-            try {
-                userService.findUserByEmail(registerRequest.getEmail());
+            if (userService.existsByEmail(registerRequest.getEmail())) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                         .body(Map.of("error", "Email já cadastrado"));
-            } catch (IllegalArgumentException e) {
-                // Email não existe, continuar registro
             }
 
             // Criar novo usuário

@@ -25,4 +25,36 @@ public class ImageBooks {
 
     @Column(name = "order_index", nullable = false)
     private Integer orderIndex;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Books getBookId() {
+        return bookId;
+    }
+
+    public void setBookId(Books bookId) {
+        this.bookId = bookId;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
+    public Integer getOrderIndex() {
+        return orderIndex;
+    }
+
+    public void setOrderIndex(Integer orderIndex) {
+        this.orderIndex = orderIndex;
+    }
 }
