@@ -14,8 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
 
 @Slf4j
 @Service
@@ -25,12 +24,14 @@ public class CheckoutService {
     @Value("${mercadopago.access-token}")
     private String accessToken;
 
+    @Value("${app.baseUrl:http://localhost:8080}")
+    private String baseUrl;
+
     private final BooksRepository booksRepository;
 
     public CheckoutResponseDTO createPreference(Long bookId) {
         try {
             MercadoPagoConfig.setAccessToken(accessToken);
-            log.info("Criando preferência para o livro ID: {}", bookId);
 
             Books book = booksRepository.findById(bookId)
                     .orElseThrow(() -> new RuntimeException("Livro não encontrado"));
@@ -41,31 +42,27 @@ public class CheckoutService {
                     .description("Livro de colorir: " + book.getTitle())
                     .quantity(1)
                     .currencyId("BRL")
-                    .unitPrice(new BigDecimal("29.90")) // ou pega do book se tiver campo de preço
+                    .unitPrice(BigDecimal.valueOf(book.getPrice()))
                     .build();
 
-            List<PreferenceItemRequest> items = new ArrayList<>();
-            items.add(item);
-
             PreferenceRequest preferenceRequest = PreferenceRequest.builder()
-                    .items(items)
+                    .items(Collections.singletonList(item))
                     .backUrls(PreferenceBackUrlsRequest.builder()
-                            .success("https://www.google.com") // temporário para testar
-                            .failure("https://www.google.com")
-                            .pending("https://www.google.com")
+                            .success(baseUrl + "/api/payments/success")
+                            .failure(baseUrl + "/api/payments/failure")
+                            .pending(baseUrl + "/api/payments/pending")
                             .build())
-                    // .autoReturn("approved")  <-- remove essa linha
+                    .notificationUrl(baseUrl + "/api/payments/webhook")
+                    .externalReference(book.getId().toString())
                     .build();
 
             PreferenceClient client = new PreferenceClient();
             Preference preference = client.create(preferenceRequest);
 
-            log.info("Preferência criada com sucesso. ID: {}", preference.getId());
-
             return new CheckoutResponseDTO(
                     preference.getId(),
-                    preference.getInitPoint(),      // URL de pagamento produção
-                    preference.getSandboxInitPoint() // URL de pagamento sandbox (use essa para testar)
+                    preference.getInitPoint(),
+                    preference.getSandboxInitPoint()
             );
 
         } catch (MPApiException e) {

@@ -6,14 +6,12 @@ import com.javation.coloringbook.Entity.ImageBooks;
 import com.javation.coloringbook.Service.BookService;
 import com.javation.coloringbook.Service.ImageBooksService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
-
 
 @RestController
 @RequiredArgsConstructor
@@ -24,14 +22,14 @@ public class BookController {
     private final ImageBooksService imageBooksService;
 
     @PostMapping
-    public ResponseEntity<?> postBook (@RequestParam Long userId, @RequestParam String title, @RequestParam List<MultipartFile> files) throws IOException {
-        Books books = bookService.createBookWithImages(userId, title, files);
+    public ResponseEntity<?> postBook (@RequestParam Long userId, @RequestParam String title, @RequestParam List<MultipartFile> files, @RequestParam Double price) throws IOException {
+        Books books = bookService.createBookWithImages(userId, title, files, price);
         return ResponseEntity.ok(new BookResponseDTO(books));
     }
 
     @GetMapping("/{userId}")
     public ResponseEntity<List<Books>> getBook (@PathVariable Long userId){
-        List<Books> books = bookService.findBookByUserId(userId);
+        List<Books> books = bookService.findBooksByUserId(userId);
         return ResponseEntity.ok(books);
     }
 

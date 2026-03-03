@@ -7,7 +7,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Entity
 @Table(name = "payments")
@@ -34,44 +33,4 @@ public class Payment {
 
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Books getBookPay() {
-        return bookPay;
-    }
-
-    public void setBookPay(Books bookPay) {
-        this.bookPay = bookPay;
-    }
-
-    public String getTransactionId() {
-        return transactionId;
-    }
-
-    public void setTransactionId(String transactionId) {
-        this.transactionId = transactionId;
-    }
-
-    public TransactionStatus getStatusPay() {
-        return statusPay;
-    }
-
-    public void setStatusPay(TransactionStatus statusPay) {
-        this.statusPay = statusPay;
-    }
-
-    public LocalDateTime getPaidAt() {
-        return paidAt;
-    }
-
-    public void setPaidAt(LocalDateTime paidAt) {
-        this.paidAt = paidAt;
-    }
 }

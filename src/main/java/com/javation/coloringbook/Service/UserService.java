@@ -19,31 +19,23 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public Users findUserById(Long id) {
-        log.debug("Finding user by ID: {}", id);
         return usersRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id));
     }
 
     @Transactional(readOnly = true)
     public Users findUserByEmail(String email) {
-        log.debug("Finding user by email: {}", email);
         return usersRepository.findByEmail(email)
                 .orElseThrow(() -> new UserNotFoundException("Email não encontrado: " + email));
     }
 
     @Transactional
     public Users createUser(Users user) {
-        log.info("Creating new user with email: {}", user.getEmail());
-        
         if (usersRepository.findByEmail(user.getEmail()).isPresent()) {
-            log.warn("Attempt to create duplicate user: {}", user.getEmail());
             throw new IllegalArgumentException("Email já está em uso");
         }
-        
         user.setCreateAt(LocalDateTime.now());
-        Users savedUser = usersRepository.save(user);
-        log.info("User created successfully with ID: {}", savedUser.getId());
-        return savedUser;
+        return usersRepository.save(user);
     }
 
     @Transactional(readOnly = true)

@@ -2,11 +2,13 @@ package com.javation.coloringbook.DTO;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
+@NoArgsConstructor
 @AllArgsConstructor
 public class CheckoutResponseDTO {
-    private String preferenceId;
-    private String initPoint;        // URL produção
-    private String sandboxInitPoint; // URL teste — use essa agora
+    private String id;
+    private String initPoint;
+    private String sandboxInitPoint;
 }

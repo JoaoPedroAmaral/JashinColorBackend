@@ -25,4 +25,8 @@ public class CreateBookRequest {
     @Min(value = 1, message = "Deve ter pelo menos 1 página")
     @Max(value = 50, message = "Não pode exceder 50 páginas")
     private Integer expectedPages;
+
+    @NotNull(message = "O preço não pode ser nulo")
+    @Min(value = 1, message = "O preço deve ser pelo menos 1")
+    private Double price;
 }

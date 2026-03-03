@@ -1,28 +1,27 @@
 package com.javation.coloringbook.DTO;
 
 import com.javation.coloringbook.Entity.Books;
-import com.javation.coloringbook.Entity.ImageBooks;
-import com.javation.coloringbook.Entity.Users;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Getter
 public class BookResponseDTO {
     private Long id;
-    private Users user;
+    private Long userId;
+    private String title;
     private LocalDateTime createAt;
     private String statusPay;
     private Integer totalPages;
-    private String downloadURL;
+    private Double price;
 
     public BookResponseDTO(Books book){
         this.id = book.getId();
-        this.user = book.getUser();
+        this.userId = book.getUser().getId();
+        this.title = book.getTitle();
         this.createAt = book.getCreateAt();
         this.statusPay = book.getStatusPay().name();
         this.totalPages = book.getTotalPages();
+        this.price = book.getPrice();
     }
-
 }

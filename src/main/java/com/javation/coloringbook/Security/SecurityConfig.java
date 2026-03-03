@@ -36,38 +36,25 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // CSRF desabilitado (API REST usa JWT)
                 .csrf(csrf -> csrf.disable())
-
-                // CORS configurado
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-                // Política de sessão STATELESS (sem sessões no servidor)
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
-
-                // Autorização de requisições
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Endpoints públicos (sem autenticação)
                         .requestMatchers(
-                                "/api/auth/**",                          // Login, registro
-                                "/api/payments/webhook/**",              // Webhooks (MP, Stripe, etc)
-                                "/api/payments/calculate-price"          // Cálculo de preço
+                                "/api/auth/**",
+                                "/api/payments/webhook/**",
+                                "/api/payments/success",
+                                "/api/payments/failure",
+                                "/api/payments/pending"
                         ).permitAll()
-
-                        // Endpoints protegidos (requerem autenticação)
                         .requestMatchers(
                                 "/api/users/**",
                                 "/api/books/**",
-                                "/api/payments/**"
+                                "/api/payments/**",
+                                "/api/checkout/**"
                         ).authenticated()
-
-                        // Qualquer outra requisição requer autenticação
                         .anyRequest().authenticated()
                 )
-
-                // Adicionar filtro JWT antes do filtro de autenticação padrão
                 .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
