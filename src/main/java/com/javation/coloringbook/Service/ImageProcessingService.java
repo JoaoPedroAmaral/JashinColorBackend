@@ -42,6 +42,7 @@ public class ImageProcessingService {
             int r = (p >> 16) & 0xff;
             int g = (p >> 8) & 0xff;
             int b = p & 0xff;
+
             gray[i] = (r * 77 + g * 150 + b * 29) >> 8;
         }
         return gray;
@@ -49,6 +50,7 @@ public class ImageProcessingService {
 
     private int[] applyEdgeDetection(int[] gray, int width, int height) {
         int[] edges = new int[gray.length];
+
         for (int y = 1; y < height - 1; y++) {
             for (int x = 1; x < width - 1; x++) {
                 int p00 = gray[(y - 1) * width + (x - 1)];
@@ -64,6 +66,7 @@ public class ImageProcessingService {
                 int gy = -p00 - 2 * p01 - p02 + p20 + 2 * p21 + p22;
 
                 int magnitude = Math.abs(gx) + Math.abs(gy);
+
                 edges[y * width + x] = Math.min(255, magnitude);
             }
         }
@@ -73,7 +76,7 @@ public class ImageProcessingService {
     private void increaseContrast(int[] edges) {
         for (int i = 0; i < edges.length; i++) {
             int val = edges[i] * CONTRAST_FACTOR;
-            edges[i] = Math.min(255, val);
+            edges[i] = Math.min(255, val); // Cap at max grayscale value
         }
     }
 
@@ -84,6 +87,7 @@ public class ImageProcessingService {
         for (int y = 1; y < height - 1; y++) {
             for (int x = 1; x < width - 1; x++) {
                 int idx = y * width + x;
+
                 if (temp[idx] > THRESHOLD_VALUE / 2) {
                     int neighbors = 0;
                     if (temp[idx - width - 1] > 0) neighbors++;
@@ -94,6 +98,7 @@ public class ImageProcessingService {
                     if (temp[idx + width - 1] > 0) neighbors++;
                     if (temp[idx + width] > 0) neighbors++;
                     if (temp[idx + width + 1] > 0) neighbors++;
+
                     if (neighbors < 2) {
                         edges[idx] = 0;
                     }
@@ -104,9 +109,12 @@ public class ImageProcessingService {
 
     private int[] thresholdToBlackAndWhite(int[] edges) {
         int[] binaryPixels = new int[edges.length];
+
         int pureWhite = 0xFFFFFFFF;
         int pureBlack = 0xFF000000;
+
         Arrays.fill(binaryPixels, pureWhite);
+
         for (int i = 0; i < edges.length; i++) {
             if (edges[i] > THRESHOLD_VALUE) {
                 binaryPixels[i] = pureBlack;
