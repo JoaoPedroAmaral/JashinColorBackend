@@ -5,10 +5,21 @@ import org.springframework.stereotype.Service;
 import java.awt.image.BufferedImage;
 import java.awt.image.ConvolveOp;
 import java.awt.image.Kernel;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.Arrays;
+import javax.imageio.ImageIO;
 
 @Service
 public class ImageProcessingService {
+
+    // ... existing constants ...
+
+    public byte[] convertToBytes(BufferedImage image) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", baos);
+        return baos.toByteArray();
+    }
 
     private static final int THRESHOLD_VALUE = 40;
     private static final float[] GAUSSIAN_BLUR_KERNAL = {
