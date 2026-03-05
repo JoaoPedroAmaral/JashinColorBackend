@@ -34,7 +34,7 @@ public class PDFGeneratorService {
     private final VectorizationService vectorizationService;
 
     public byte[] generatePdfFromImageUrls(List<ImageBooks> images, String title) throws Exception {
-        log.info("Generating full-page landscape PDF (no rotation) for: '{}'", title);
+        log.info("Generating high-quality full-page PDF (thick vector lines) for: '{}'", title);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         
         // Use A4 in Landscape orientation (842 x 595)
@@ -52,63 +52,58 @@ public class PDFGeneratorService {
 
             for (ImageBooks imageBook : images) {
                 try {
-                    log.info("Processing full-page landscape page: {}", imageBook.getImageUrl());
+                    log.info("Processing page: {}", imageBook.getImageUrl());
                     BufferedImage original = ImageIO.read(new URL(imageBook.getImageUrl()));
                     if (original == null) continue;
 
-                    BufferedImage sketch = imageProcessingService.convertToSketch(original);
-                    List<List<Point2D_I32>> contours = vectorizationService.getContours(sketch);
+                    // 1. Preprocess for vectorization
+                    BufferedImage preprocessed = imageProcessingService.preprocessForVectorization(original);
+                    
+                    // 2. Get simplified contours (outlines of thick lines)
+                    List<VectorizationService.SimplifiedContour> contours = vectorizationService.getSimplifiedContours(preprocessed);
 
                     document.newPage();
                     PdfContentByte cb = writer.getDirectContent();
 
-                    // Dimensions of the original sketch
-                    float sketchW = sketch.getWidth();
-                    float sketchH = sketch.getHeight();
+                    float sketchW = preprocessed.getWidth();
+                    float sketchH = preprocessed.getHeight();
                     
-                    // Scale to cover the entire page (pageWidth x pageHeight)
-                    // No rotation: width maps to width, height maps to height
                     float scaleX = pageWidth / sketchW;
                     float scaleY = pageHeight / sketchH;
 
                     cb.saveState();
-                    
-                    // Apply scaling and translation to fill the page
-                    // No rotation component (a=scaleX, b=0, c=0, d=scaleY)
                     cb.concatCTM(scaleX, 0, 0, scaleY, 0, 0);
 
-                    // 1. White Background
+                    // A. White Background
                     cb.setColorFill(Color.WHITE);
                     cb.rectangle(0, 0, sketchW, sketchH);
                     cb.fill();
 
-                    // 2. Black Border
+                    // B. Black Border
                     cb.setColorStroke(Color.BLACK);
                     cb.setLineWidth(BORDER_WIDTH / Math.min(scaleX, scaleY));
                     cb.rectangle(0, 0, sketchW, sketchH);
                     cb.stroke();
 
-                    // 3. Smooth Skeletonized Vector Lines
-                    cb.setLineWidth(1.2f / Math.min(scaleX, scaleY));
-                    cb.setLineCap(PdfContentByte.LINE_CAP_ROUND);
-                    cb.setLineJoin(PdfContentByte.LINE_JOIN_ROUND);
+                    // C. Thick Vector Lines (Filled Areas)
+                    cb.setColorFill(Color.BLACK);
                     
                     if (contours != null && !contours.isEmpty()) {
-                        for (List<Point2D_I32> contour : contours) {
-                            if (contour.size() < 2) continue;
+                        for (VectorizationService.SimplifiedContour contour : contours) {
+                            // Draw External Path
+                            drawPath(cb, contour.getExternal(), sketchH);
                             
-                            Point2D_I32 start = contour.get(0);
-                            // Flip Y for PDF coordinate system (origin is bottom-left)
-                            cb.moveTo(start.x, sketchH - start.y);
-                            
-                            for (int i = 1; i < contour.size(); i++) {
-                                Point2D_I32 p = contour.get(i);
-                                cb.lineTo(p.x, sketchH - p.y);
+                            // Draw Internal Holes
+                            for (List<Point2D_I32> hole : contour.getInternal()) {
+                                drawPath(cb, hole, sketchH);
                             }
-                            cb.stroke();
+                            
+                            // Fill using even-odd rule (handles holes correctly)
+                            cb.eoFill();
                         }
                     } else {
                         // Image Fallback
+                        BufferedImage sketch = imageProcessingService.convertToSketch(original);
                         Image img = Image.getInstance(imageProcessingService.convertToBytes(sketch));
                         img.scaleAbsolute(sketchW, sketchH);
                         img.setAbsolutePosition(0, 0);
@@ -117,21 +112,30 @@ public class PDFGeneratorService {
                     
                     cb.restoreState();
                 } catch (Exception e) {
-                    log.error("Error on full-page landscape page {}: {}", imageBook.getImageUrl(), e.getMessage());
+                    log.error("Error on page {}: {}", imageBook.getImageUrl(), e.getMessage());
                 }
             }
 
             document.setMargins(MARGIN, MARGIN, MARGIN, MARGIN);
             addEndPage(document);
             document.close();
-            
-            log.info("Full-page landscape PDF generated successfully.");
         } catch (Exception e) {
-            log.error("Fatal landscape PDF error: {}", e.getMessage(), e);
+            log.error("Fatal PDF error: {}", e.getMessage(), e);
             if (document.isOpen()) document.close();
             throw e;
         }
         return out.toByteArray();
+    }
+
+    private void drawPath(PdfContentByte cb, List<Point2D_I32> points, float h) {
+        if (points == null || points.isEmpty()) return;
+        Point2D_I32 start = points.get(0);
+        cb.moveTo(start.x, h - start.y);
+        for (int i = 1; i < points.size(); i++) {
+            Point2D_I32 p = points.get(i);
+            cb.lineTo(p.x, h - p.y);
+        }
+        cb.closePath();
     }
 
     private void addCoverPage(Document document, String title) throws Exception {

@@ -21,6 +21,36 @@ public class ImageProcessingService {
         return baos.toByteArray();
     }
 
+    /**
+     * Prepares an image for vectorization by converting to high-contrast grayscale.
+     * Unlike convertToSketch, this does NOT use edge detection, preserving the lines
+     * so they can be skeletonized/thinned correctly.
+     */
+    public BufferedImage preprocessForVectorization(BufferedImage original) {
+        if (original == null) return null;
+
+        // 1. Convert to Grayscale
+        BufferedImage gray = new BufferedImage(original.getWidth(), original.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
+        java.awt.Graphics2D g2d = gray.createGraphics();
+        g2d.drawImage(original, 0, 0, null);
+        g2d.dispose();
+
+        // 2. Increase contrast and threshold to isolate dark lines
+        int width = gray.getWidth();
+        int height = gray.getHeight();
+        BufferedImage result = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
+        
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int pixel = gray.getRGB(x, y) & 0xFF;
+                // Threshold: dark pixels become black (0), light pixels become white (255)
+                int newVal = (pixel < 120) ? 0 : 255;
+                result.setRGB(x, y, (newVal << 16) | (newVal << 8) | newVal);
+            }
+        }
+        return result;
+    }
+
     private static final int THRESHOLD_VALUE = 40;
     private static final float[] GAUSSIAN_BLUR_KERNAL = {
         1/16f, 2/16f, 1/16f,
