@@ -27,10 +27,13 @@ public class BookController {
         return ResponseEntity.ok(new BookResponseDTO(books));
     }
 
-    @GetMapping("/{userId}")
-    public ResponseEntity<List<Books>> getBook (@PathVariable Long userId){
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<BookResponseDTO>> getBooksByUser(@PathVariable Long userId) {
         List<Books> books = bookService.findBooksByUserId(userId);
-        return ResponseEntity.ok(books);
+        List<BookResponseDTO> dtos = books.stream()
+                .map(BookResponseDTO::new)
+                .toList();
+        return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/{bookId}/images")

@@ -46,6 +46,7 @@ public class SecurityConfig {
                                 "/api/payments/success",
                                 "/api/payments/failure",
                                 "/api/payments/pending"
+
                         ).permitAll()
                         .requestMatchers(
                                 "/api/users/**",

@@ -24,14 +24,27 @@ public class CheckoutService {
     @Value("${mercadopago.access-token}")
     private String accessToken;
 
-    @Value("${app.baseUrl:http://localhost:8080}")
+    @Value("${app.baseUrl}")
     private String baseUrl;
+
+    @Value("${app.frontendUrl:http://localhost:3000}")
+    private String frontendUrl;
 
     private final BooksRepository booksRepository;
 
     public CheckoutResponseDTO createPreference(Long bookId) {
         try {
             MercadoPagoConfig.setAccessToken(accessToken);
+
+            // Garante que as URLs não terminem com /
+            String cleanBaseUrl = (baseUrl == null || baseUrl.isEmpty()) ? "http://localhost:8080" : baseUrl;
+            if (cleanBaseUrl.endsWith("/")) cleanBaseUrl = cleanBaseUrl.substring(0, cleanBaseUrl.length() - 1);
+            
+            String cleanFrontendUrl = (frontendUrl == null || frontendUrl.isEmpty()) ? "http://localhost:3000" : frontendUrl;
+            if (cleanFrontendUrl.endsWith("/")) cleanFrontendUrl = cleanFrontendUrl.substring(0, cleanFrontendUrl.length() - 1);
+
+            String successUrl = cleanBaseUrl + "/api/payments/success";
+            log.info("Configuring MP Preference - Success URL: {}", successUrl);
 
             Books book = booksRepository.findById(bookId)
                     .orElseThrow(() -> new RuntimeException("Livro não encontrado"));
@@ -48,11 +61,12 @@ public class CheckoutService {
             PreferenceRequest preferenceRequest = PreferenceRequest.builder()
                     .items(Collections.singletonList(item))
                     .backUrls(PreferenceBackUrlsRequest.builder()
-                            .success(baseUrl + "/api/payments/success")
-                            .failure(baseUrl + "/api/payments/failure")
-                            .pending(baseUrl + "/api/payments/pending")
+                            .success(successUrl)
+                            .failure(cleanFrontendUrl + "/payment-failure")
+                            .pending(cleanFrontendUrl + "/payment-pending")
                             .build())
-                    .notificationUrl(baseUrl + "/api/payments/webhook")
+                    .autoReturn("approved")
+                    .notificationUrl(cleanBaseUrl + "/api/payments/webhook")
                     .externalReference(book.getId().toString())
                     .build();
 
