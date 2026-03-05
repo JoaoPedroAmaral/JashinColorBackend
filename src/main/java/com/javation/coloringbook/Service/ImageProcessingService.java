@@ -1,7 +1,6 @@
 package com.javation.coloringbook.Service;
 
 import org.springframework.stereotype.Service;
-
 import java.awt.image.BufferedImage;
 import java.awt.image.ConvolveOp;
 import java.awt.image.Kernel;
@@ -13,7 +12,12 @@ import javax.imageio.ImageIO;
 @Service
 public class ImageProcessingService {
 
-    // ... existing constants ...
+    private static final int THRESHOLD_VALUE = 40;
+    private static final float[] GAUSSIAN_BLUR_KERNEL = {
+        1/16f, 2/16f, 1/16f,
+        2/16f, 4/16f, 2/16f,
+        1/16f, 2/16f, 1/16f
+    };
 
     public byte[] convertToBytes(BufferedImage image) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -21,72 +25,43 @@ public class ImageProcessingService {
         return baos.toByteArray();
     }
 
-    /**
-     * Prepares an image for vectorization by converting to high-contrast grayscale.
-     * Unlike convertToSketch, this does NOT use edge detection, preserving the lines
-     * so they can be skeletonized/thinned correctly.
-     */
     public BufferedImage preprocessForVectorization(BufferedImage original) {
         if (original == null) return null;
 
-        // 1. Convert to Grayscale
-        BufferedImage gray = new BufferedImage(original.getWidth(), original.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
-        java.awt.Graphics2D g2d = gray.createGraphics();
-        g2d.drawImage(original, 0, 0, null);
-        g2d.dispose();
-
-        // 2. Increase contrast and threshold to isolate dark lines
-        int width = gray.getWidth();
-        int height = gray.getHeight();
-        BufferedImage result = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
+        int w = original.getWidth();
+        int h = original.getHeight();
+        BufferedImage result = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
         
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int pixel = gray.getRGB(x, y) & 0xFF;
-                // Threshold: dark pixels become black (0), light pixels become white (255)
-                int newVal = (pixel < 120) ? 0 : 255;
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int rgb = original.getRGB(x, y);
+                int r = (rgb >> 16) & 0xFF;
+                int g = (rgb >> 8) & 0xFF;
+                int b = rgb & 0xFF;
+                int newVal = ((r + g + b) / 3 < 120) ? 0 : 255;
                 result.setRGB(x, y, (newVal << 16) | (newVal << 8) | newVal);
             }
         }
         return result;
     }
 
-    private static final int THRESHOLD_VALUE = 40;
-    private static final float[] GAUSSIAN_BLUR_KERNAL = {
-        1/16f, 2/16f, 1/16f,
-        2/16f, 4/16f, 2/16f,
-        1/16f, 2/16f, 1/16f
-    };
-
     public BufferedImage convertToSketch(BufferedImage original) {
-        if (original == null) {
-            throw new IllegalArgumentException("Original image cannot be null");
-        }
+        if (original == null) throw new IllegalArgumentException("Original image cannot be null");
 
-        // 1. Convert to Grayscale
         BufferedImage gray = new BufferedImage(original.getWidth(), original.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
         gray.getGraphics().drawImage(original, 0, 0, null);
 
-        // 2. Apply Gaussian Blur to reduce initial noise
         BufferedImage blurred = applyGaussianBlur(gray);
-
-        // 3. Sobel Edge Detection
         int width = blurred.getWidth();
         int height = blurred.getHeight();
+        
         int[] edges = applySobel(blurred);
-
-        // 4. Median Filter to remove "salt and pepper" noise from edges
         int[] cleanEdges = applyMedianFilter(edges, width, height);
 
-        // 5. Thresholding to create clean black lines
         BufferedImage result = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         int[] finalPixels = new int[width * height];
         for (int i = 0; i < cleanEdges.length; i++) {
-            if (cleanEdges[i] > THRESHOLD_VALUE) {
-                finalPixels[i] = 0xFF000000; // Black line
-            } else {
-                finalPixels[i] = 0xFFFFFFFF; // White background
-            }
+            finalPixels[i] = (cleanEdges[i] > THRESHOLD_VALUE) ? 0xFF000000 : 0xFFFFFFFF;
         }
 
         result.setRGB(0, 0, width, height, finalPixels, 0, width);
@@ -94,37 +69,34 @@ public class ImageProcessingService {
     }
 
     private BufferedImage applyGaussianBlur(BufferedImage src) {
-        Kernel kernel = new Kernel(3, 3, GAUSSIAN_BLUR_KERNAL);
-        ConvolveOp op = new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, null);
-        return op.filter(src, null);
+        return new ConvolveOp(new Kernel(3, 3, GAUSSIAN_BLUR_KERNEL), ConvolveOp.EDGE_NO_OP, null).filter(src, null);
     }
 
     private int[] applySobel(BufferedImage img) {
-        int width = img.getWidth();
-        int height = img.getHeight();
-        int[] pixels = new int[width * height];
-        int[] out = new int[width * height];
+        int w = img.getWidth();
+        int h = img.getHeight();
+        int[] pixels = new int[w * h];
+        int[] out = new int[w * h];
 
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                pixels[y * width + x] = img.getRGB(x, y) & 0xFF;
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                pixels[y * w + x] = img.getRGB(x, y) & 0xFF;
             }
         }
 
-        for (int y = 1; y < height - 1; y++) {
-            for (int x = 1; x < width - 1; x++) {
-                int p00 = pixels[(y - 1) * width + (x - 1)];
-                int p02 = pixels[(y - 1) * width + (x + 1)];
-                int p10 = pixels[y * width + (x - 1)];
-                int p12 = pixels[y * width + (x + 1)];
-                int p20 = pixels[(y + 1) * width + (x - 1)];
-                int p22 = pixels[(y + 1) * width + (x + 1)];
+        for (int y = 1; y < h - 1; y++) {
+            for (int x = 1; x < w - 1; x++) {
+                int p00 = pixels[(y - 1) * w + (x - 1)];
+                int p02 = pixels[(y - 1) * w + (x + 1)];
+                int p10 = pixels[y * w + (x - 1)];
+                int p12 = pixels[y * w + (x + 1)];
+                int p20 = pixels[(y + 1) * w + (x - 1)];
+                int p22 = pixels[(y + 1) * w + (x + 1)];
 
-                int gx = (-1 * p00) + (1 * p02) + (-2 * p10) + (2 * p12) + (-1 * p20) + (1 * p22);
-                int gy = (-1 * p00) + (-2 * pixels[(y - 1) * width + x]) + (-1 * p02) + (1 * p20) + (2 * pixels[(y + 1) * width + x]) + (1 * p22);
+                int gx = (-1 * p00) + p02 + (-2 * p10) + (2 * p12) + (-1 * p20) + p22;
+                int gy = (-1 * p00) + (-2 * pixels[(y - 1) * w + x]) + (-1 * p02) + p20 + (2 * pixels[(y + 1) * w + x]) + p22;
 
-                double magnitude = Math.sqrt(gx * gx + gy * gy);
-                out[y * width + x] = (int) Math.min(255, magnitude);
+                out[y * w + x] = (int) Math.min(255, Math.sqrt(gx * gx + gy * gy));
             }
         }
         return out;
@@ -143,7 +115,7 @@ public class ImageProcessingService {
                     }
                 }
                 Arrays.sort(neighborhood);
-                result[y * width + x] = neighborhood[4]; // Median value
+                result[y * width + x] = neighborhood[4];
             }
         }
         return result;

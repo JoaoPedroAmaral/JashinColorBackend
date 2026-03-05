@@ -34,93 +34,66 @@ public class PDFGeneratorService {
     private final VectorizationService vectorizationService;
 
     public byte[] generatePdfFromImageUrls(List<ImageBooks> images, String title) throws Exception {
-        log.info("Generating high-quality full-page PDF (thick vector lines) for: '{}'", title);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        
-        // Use A4 in Landscape orientation (842 x 595)
         Document document = new Document(PageSize.A4.rotate(), 0, 0, 0, 0);
         
         try {
             PdfWriter writer = PdfWriter.getInstance(document, out);
             document.open();
-
-            // Cover Page
             addCoverPage(document, title);
 
-            float pageWidth = document.getPageSize().getWidth();
-            float pageHeight = document.getPageSize().getHeight();
+            float pW = document.getPageSize().getWidth();
+            float pH = document.getPageSize().getHeight();
 
             for (ImageBooks imageBook : images) {
                 try {
-                    log.info("Processing page: {}", imageBook.getImageUrl());
                     BufferedImage original = ImageIO.read(new URL(imageBook.getImageUrl()));
                     if (original == null) continue;
 
-                    // 1. Preprocess for vectorization
-                    BufferedImage preprocessed = imageProcessingService.preprocessForVectorization(original);
-                    
-                    // 2. Get simplified contours (outlines of thick lines)
-                    List<VectorizationService.SimplifiedContour> contours = vectorizationService.getSimplifiedContours(preprocessed);
+                    BufferedImage pre = imageProcessingService.preprocessForVectorization(original);
+                    List<VectorizationService.SimplifiedContour> contours = vectorizationService.getSimplifiedContours(pre);
 
                     document.newPage();
                     PdfContentByte cb = writer.getDirectContent();
 
-                    float sketchW = preprocessed.getWidth();
-                    float sketchH = preprocessed.getHeight();
-                    
-                    float scaleX = pageWidth / sketchW;
-                    float scaleY = pageHeight / sketchH;
+                    float sW = pre.getWidth(), sH = pre.getHeight();
+                    float scaleX = pW / sW, scaleY = pH / sH;
 
                     cb.saveState();
                     cb.concatCTM(scaleX, 0, 0, scaleY, 0, 0);
 
-                    // A. White Background
                     cb.setColorFill(Color.WHITE);
-                    cb.rectangle(0, 0, sketchW, sketchH);
+                    cb.rectangle(0, 0, sW, sH);
                     cb.fill();
 
-                    // B. Black Border
                     cb.setColorStroke(Color.BLACK);
                     cb.setLineWidth(BORDER_WIDTH / Math.min(scaleX, scaleY));
-                    cb.rectangle(0, 0, sketchW, sketchH);
+                    cb.rectangle(0, 0, sW, sH);
                     cb.stroke();
 
-                    // C. Thick Vector Lines (Filled Areas)
                     cb.setColorFill(Color.BLACK);
-                    
                     if (contours != null && !contours.isEmpty()) {
                         for (VectorizationService.SimplifiedContour contour : contours) {
-                            // Draw External Path
-                            drawPath(cb, contour.getExternal(), sketchH);
-                            
-                            // Draw Internal Holes
-                            for (List<Point2D_I32> hole : contour.getInternal()) {
-                                drawPath(cb, hole, sketchH);
-                            }
-                            
-                            // Fill using even-odd rule (handles holes correctly)
+                            drawPath(cb, contour.getExternal(), sH);
+                            for (List<Point2D_I32> hole : contour.getInternal()) drawPath(cb, hole, sH);
                             cb.eoFill();
                         }
                     } else {
-                        // Image Fallback
                         BufferedImage sketch = imageProcessingService.convertToSketch(original);
                         Image img = Image.getInstance(imageProcessingService.convertToBytes(sketch));
-                        img.scaleAbsolute(sketchW, sketchH);
+                        img.scaleAbsolute(sW, sH);
                         img.setAbsolutePosition(0, 0);
                         cb.addImage(img);
                     }
-                    
                     cb.restoreState();
                 } catch (Exception e) {
-                    log.error("Error on page {}: {}", imageBook.getImageUrl(), e.getMessage());
+                    log.error("Page error ({}): {}", imageBook.getImageUrl(), e.getMessage());
                 }
             }
-
             document.setMargins(MARGIN, MARGIN, MARGIN, MARGIN);
             addEndPage(document);
             document.close();
         } catch (Exception e) {
-            log.error("Fatal PDF error: {}", e.getMessage(), e);
             if (document.isOpen()) document.close();
             throw e;
         }
@@ -129,12 +102,8 @@ public class PDFGeneratorService {
 
     private void drawPath(PdfContentByte cb, List<Point2D_I32> points, float h) {
         if (points == null || points.isEmpty()) return;
-        Point2D_I32 start = points.get(0);
-        cb.moveTo(start.x, h - start.y);
-        for (int i = 1; i < points.size(); i++) {
-            Point2D_I32 p = points.get(i);
-            cb.lineTo(p.x, h - p.y);
-        }
+        cb.moveTo(points.get(0).x, h - points.get(0).y);
+        for (int i = 1; i < points.size(); i++) cb.lineTo(points.get(i).x, h - points.get(i).y);
         cb.closePath();
     }
 

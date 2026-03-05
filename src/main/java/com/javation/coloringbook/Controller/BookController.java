@@ -36,6 +36,12 @@ public class BookController {
         return ResponseEntity.ok(dtos);
     }
 
+    @GetMapping("/{bookId}")
+    public ResponseEntity<BookResponseDTO> getBookById(@PathVariable Long bookId) {
+        Books book = bookService.findBookById(bookId);
+        return ResponseEntity.ok(new BookResponseDTO(book));
+    }
+
     @GetMapping("/{bookId}/images")
     public ResponseEntity<List<ImageBooks>> getBookImage (@PathVariable Long bookId){
         List<ImageBooks> images = imageBooksService.findByBookId(bookId);
