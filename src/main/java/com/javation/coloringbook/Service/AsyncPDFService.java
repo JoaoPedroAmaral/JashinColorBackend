@@ -24,9 +24,12 @@ public class AsyncPDFService {
 
     @Async
     public void generatePdfAsync(Long bookId) {
-        log.info("Starting async PDF generation for book: {}", bookId);
+        log.info("Starting async PDF generation for book ID: {}", bookId);
         
         try {
+            // Pequeno delay para garantir que a transação do banco que marcou como PAID terminou
+            Thread.sleep(1000);
+
             Books book = booksRepository.findByIdWithImagesAndUser(bookId)
                     .orElseThrow(() -> new RuntimeException("Book not found: " + bookId));
 
@@ -37,25 +40,41 @@ public class AsyncPDFService {
                 return;
             }
 
+            log.info("Generating PDF with {} images for book {}", images.size(), bookId);
             String bookTitle = "Livro de Colorir - " + book.getUser().getEmail();
             byte[] pdfBytes = pdfGeneratorService.generatePdfFromImageUrls(images, bookTitle);
 
-            String downloadUrl = cloudinaryService.uploadPdf(pdfBytes, "livro_" + bookId);
-            log.debug("PDF uploaded to Cloudinary: {}", downloadUrl);
+            if (pdfBytes == null || pdfBytes.length == 0) {
+                throw new RuntimeException("Generated PDF is empty for book " + bookId);
+            }
 
+            log.info("PDF generated successfully ({} bytes). Uploading to Cloudinary...", pdfBytes.length);
+            // Opcional: Upload para o Cloudinary se você quiser um link externo
+            try {
+                String cloudinaryUrl = cloudinaryService.uploadPdf(pdfBytes, "livro_" + bookId);
+                log.info("PDF uploaded to Cloudinary: {}", cloudinaryUrl);
+            } catch (Exception e) {
+                log.warn("Cloudinary upload failed (non-critical): {}", e.getMessage());
+            }
+
+            // Salva o PDF no banco de dados
             book.setDownloadUrl(pdfBytes);
             book.setStatusPay(BookPaymentStatus.PAID);
-            booksRepository.save(book);
+            booksRepository.saveAndFlush(book);
 
-            log.info("Async PDF generation completed for book: {}", bookId);
+            log.info("Async PDF generation and save completed for book: {}", bookId);
             
         } catch (Exception e) {
-            log.error("Error during async PDF generation for book {}: {}", bookId, e.getMessage(), e);
+            log.error("CRITICAL error during async PDF generation for book {}: {}", bookId, e.getMessage(), e);
             
-            Books book = booksRepository.findById(bookId).orElse(null);
-            if (book != null) {
-                book.setStatusPay(BookPaymentStatus.FAILED);
-                booksRepository.save(book);
+            try {
+                Books book = booksRepository.findById(bookId).orElse(null);
+                if (book != null) {
+                    book.setStatusPay(BookPaymentStatus.FAILED);
+                    booksRepository.saveAndFlush(book);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to mark book as FAILED: {}", ex.getMessage());
             }
         }
     }

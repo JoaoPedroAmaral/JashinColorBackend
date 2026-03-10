@@ -28,6 +28,7 @@ public class PaymentWebhookService {
     private final PaymentRepository paymentRepository;
     private final BooksRepository booksRepository;
     private final BookService bookService;
+    private final AsyncPDFService asyncPDFService;
 
     @Transactional
     public void processNotification(String id, String topic, Map<String, Object> payload) {
@@ -107,10 +108,7 @@ public class PaymentWebhookService {
         
         log.info("Book {} status updated to PAID", bookId);
 
-        try {
-            bookService.generateBookDownloadUrl(bookId, book.getUser().getId());
-        } catch (Exception e) {
-            log.error("Error generating download URL, but payment was successful: {}", e.getMessage());
-        }
+        // Gera o PDF de forma verdadeiramente assíncrona chamando um serviço separado
+        asyncPDFService.generatePdfAsync(bookId);
     }
 }
