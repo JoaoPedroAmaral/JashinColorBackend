@@ -41,12 +41,12 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
+                                "/",
                                 "/api/auth/**",
                                 "/api/payments/webhook/**",
                                 "/api/payments/success",
                                 "/api/payments/failure",
                                 "/api/payments/pending"
-
                         ).permitAll()
                         .requestMatchers(
                                 "/api/users/**",

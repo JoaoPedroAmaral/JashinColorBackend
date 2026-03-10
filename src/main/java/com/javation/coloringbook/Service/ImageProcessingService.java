@@ -28,7 +28,7 @@ public class ImageProcessingService {
     }
 
     public BufferedImage resizeForProcessing(BufferedImage original) {
-        int maxDim = 1500; // Cap at 1500px for memory safety
+        int maxDim = 1000; // Aggressive cap for 512MB RAM
         int w = original.getWidth();
         int h = original.getHeight();
         
@@ -70,23 +70,32 @@ public class ImageProcessingService {
     public BufferedImage convertToSketch(BufferedImage original) {
         if (original == null) throw new IllegalArgumentException("Original image cannot be null");
 
-        BufferedImage gray = new BufferedImage(original.getWidth(), original.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
-        gray.getGraphics().drawImage(original, 0, 0, null);
+        int width = original.getWidth();
+        int height = original.getHeight();
+
+        BufferedImage gray = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
+        java.awt.Graphics g = gray.getGraphics();
+        g.drawImage(original, 0, 0, null);
+        g.dispose();
 
         BufferedImage blurred = applyGaussianBlur(gray);
-        int width = blurred.getWidth();
-        int height = blurred.getHeight();
+        gray.flush(); // Free memory immediately
 
         int[] edges = applySobel(blurred);
+        blurred.flush(); // Free memory immediately
+
         int[] cleanEdges = applyMedianFilter(edges, width, height);
 
-        BufferedImage result = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        int[] finalPixels = new int[width * height];
-        for (int i = 0; i < cleanEdges.length; i++) {
-            finalPixels[i] = (cleanEdges[i] > THRESHOLD_VALUE) ? 0xFF000000 : 0xFFFFFFFF;
+        BufferedImage result = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_BINARY);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                if (cleanEdges[y * width + x] > THRESHOLD_VALUE) {
+                    result.setRGB(x, y, 0xFF000000); // Black
+                } else {
+                    result.setRGB(x, y, 0xFFFFFFFF); // White
+                }
+            }
         }
-
-        result.setRGB(0, 0, width, height, finalPixels, 0, width);
         return result;
     }
 
