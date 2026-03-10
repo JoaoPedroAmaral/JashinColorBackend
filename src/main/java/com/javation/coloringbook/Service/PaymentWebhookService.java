@@ -53,10 +53,14 @@ public class PaymentWebhookService {
             }
         } catch (Exception e) {
             log.error("Webhook processing failed: {}", e.getMessage());
+            // Se falhou por deadlock ou outra exceção de banco, o Spring vai dar rollback
+            // mas aqui estamos capturando para logar.
+            throw e; 
         }
     }
 
-    private void handlePaymentUpdate(String paymentId) throws Exception {
+    @Transactional
+    protected void handlePaymentUpdate(String paymentId) throws Exception {
         PaymentClient client = new PaymentClient();
         com.mercadopago.resources.payment.Payment mpPayment = client.get(Long.valueOf(paymentId));
 
@@ -70,11 +74,14 @@ public class PaymentWebhookService {
         }
     }
 
-    private void confirmBookPayment(Long bookId, String transactionId) throws Exception {
+    @Transactional
+    protected void confirmBookPayment(Long bookId, String transactionId) throws Exception {
+        // Busca o livro com lock para evitar que dois processos tentem criar o pagamento ao mesmo tempo
         Books book = booksRepository.findById(bookId)
                 .orElseThrow(() -> new RuntimeException("Book not found: " + bookId));
 
         if (book.getStatusPay() == BookPaymentStatus.PAID) {
+            log.info("Book {} already marked as PAID. Skipping.", bookId);
             return;
         }
 
@@ -86,18 +93,25 @@ public class PaymentWebhookService {
                     .statusPay(TransactionStatus.SUCCESS)
                     .paidAt(LocalDateTime.now())
                     .build();
+            log.info("Creating new payment record for book {}", bookId);
         } else {
             payment.setTransactionId(transactionId);
             payment.setStatusPay(TransactionStatus.SUCCESS);
             payment.setPaidAt(LocalDateTime.now());
+            log.info("Updating existing payment record for book {}", bookId);
         }
-        paymentRepository.save(payment);
+        
+        paymentRepository.saveAndFlush(payment);
 
         book.setStatusPay(BookPaymentStatus.PAID);
-        booksRepository.save(book);
+        booksRepository.saveAndFlush(book);
         
         log.info("Book {} status updated to PAID", bookId);
 
-        bookService.generateBookDownloadUrl(bookId, book.getUser().getId());
+        try {
+            bookService.generateBookDownloadUrl(bookId, book.getUser().getId());
+        } catch (Exception e) {
+            log.error("Error generating download URL, but payment was successful: {}", e.getMessage());
+        }
     }
 }

@@ -55,13 +55,11 @@ public class PaymentController {
             webhookService.processNotification(id, "payment", payload);
         }
 
-        // Garante que a frontendUrl não termine com /
         String cleanFrontendUrl = (frontendUrl == null || frontendUrl.isEmpty()) ? "http://localhost:3000" : frontendUrl;
         if (cleanFrontendUrl.endsWith("/")) {
             cleanFrontendUrl = cleanFrontendUrl.substring(0, cleanFrontendUrl.length() - 1);
         }
 
-        // Redireciona para o seu frontend (ex: https://jashincolorfrontend.onrender.com/payment-success?status=approved&bookId=1)
         String redirectUrl = cleanFrontendUrl + "/payment-success?status=" + (status != null ? status : "unknown") + "&bookId=" + (externalReference != null ? externalReference : "");
 
         log.info("Redirecting user back to frontend: {}", redirectUrl);
