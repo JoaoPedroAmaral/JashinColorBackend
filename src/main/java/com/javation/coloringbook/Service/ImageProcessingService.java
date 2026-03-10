@@ -22,7 +22,29 @@ public class ImageProcessingService {
     public byte[] convertToBytes(BufferedImage image) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ImageIO.write(image, "png", baos);
-        return baos.toByteArray();
+        byte[] bytes = baos.toByteArray();
+        baos.close();
+        return bytes;
+    }
+
+    public BufferedImage resizeForProcessing(BufferedImage original) {
+        int maxDim = 1500; // Cap at 1500px for memory safety
+        int w = original.getWidth();
+        int h = original.getHeight();
+        
+        if (w <= maxDim && h <= maxDim) return original;
+        
+        double scale = Math.min((double) maxDim / w, (double) maxDim / h);
+        int newW = (int) (w * scale);
+        int newH = (int) (h * scale);
+        
+        BufferedImage resized = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g = resized.createGraphics();
+        g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(original, 0, 0, newW, newH, null);
+        g.dispose();
+        
+        return resized;
     }
 
     public BufferedImage preprocessForVectorization(BufferedImage original) {
