@@ -93,9 +93,6 @@ public class PDFGeneratorService {
                         cb.addImage(img);
                     }
                     cb.restoreState();
-                    
-                    // Manually trigger GC to free up memory from large image processing
-                    System.gc();
                 } catch (Exception e) {
                     log.error("Page error ({}): {}", imageBook.getImageUrl(), e.getMessage());
                 }
@@ -131,7 +128,7 @@ public class PDFGeneratorService {
             float drawW = pageW + bleed * 2;
             float drawH = pageH + bleed * 2;
 
-            float renderScale = 1.0f;
+            float renderScale = 3.0f;
             PNGTranscoder transcoder = new PNGTranscoder();
             transcoder.addTranscodingHint(SVGAbstractTranscoder.KEY_WIDTH,  drawW * renderScale);
             transcoder.addTranscodingHint(SVGAbstractTranscoder.KEY_HEIGHT, drawH * renderScale);

@@ -31,5 +31,5 @@ EXPOSE ${PORT}
 ENTRYPOINT ["java", \
     "-Djava.awt.headless=true", \
     "-Dserver.port=${PORT}", \
-    "-Xmx256m", \
+    "-Xmx512m", \
     "-jar", "app.jar"]

@@ -14,9 +14,9 @@ public class ImageProcessingService {
 
     private static final int THRESHOLD_VALUE = 40;
     private static final float[] GAUSSIAN_BLUR_KERNEL = {
-        1/16f, 2/16f, 1/16f,
-        2/16f, 4/16f, 2/16f,
-        1/16f, 2/16f, 1/16f
+            1/16f, 2/16f, 1/16f,
+            2/16f, 4/16f, 2/16f,
+            1/16f, 2/16f, 1/16f
     };
 
     public byte[] convertToBytes(BufferedImage image) throws IOException {
@@ -31,7 +31,7 @@ public class ImageProcessingService {
         int w = original.getWidth();
         int h = original.getHeight();
         BufferedImage result = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
-        
+
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 int rgb = original.getRGB(x, y);
@@ -54,7 +54,7 @@ public class ImageProcessingService {
         BufferedImage blurred = applyGaussianBlur(gray);
         int width = blurred.getWidth();
         int height = blurred.getHeight();
-        
+
         int[] edges = applySobel(blurred);
         int[] cleanEdges = applyMedianFilter(edges, width, height);
 
