@@ -28,9 +28,11 @@ public class Books {
     @JoinColumn(name = "user_id")
     private Users user;
 
+    @Builder.Default
     @Column(name = "created_datetime")
     private LocalDateTime createAt = LocalDateTime.now();
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status_pay")
     private BookPaymentStatus statusPay = BookPaymentStatus.PENDING;

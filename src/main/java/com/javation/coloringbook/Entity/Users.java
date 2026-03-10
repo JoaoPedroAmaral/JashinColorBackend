@@ -26,6 +26,7 @@ public class Users {
     @Column(name="password_hash", nullable = false)
     private String passwordHash;
 
+    @Builder.Default
     @Column(name = "create_at")
     private LocalDateTime createAt = LocalDateTime.now();
 }

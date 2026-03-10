@@ -53,9 +53,8 @@ public class PaymentWebhookService {
             }
         } catch (Exception e) {
             log.error("Webhook processing failed: {}", e.getMessage());
-            // Se falhou por deadlock ou outra exceção de banco, o Spring vai dar rollback
-            // mas aqui estamos capturando para logar.
-            throw e; 
+            // Rethrow as RuntimeException for Spring Transactional Rollback
+            throw new RuntimeException("Webhook processing error", e); 
         }
     }
 
