@@ -6,15 +6,17 @@ import com.javation.coloringbook.Repository.ImageBooksRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Slf4j
 @Service
@@ -25,55 +27,57 @@ public class ImageBooksService {
     private final CloudinaryService cloudinaryService;
     private final ImageProcessingService imageProcessingService;
 
-    @Transactional
-    public List<ImageBooks> processAndSaveImages(Books book, List<MultipartFile> files) throws IOException {
-        List<ImageBooks> savedImages = new ArrayList<>();
+    public List<ImageBooks> processAndSaveImages(Books book, List<MultipartFile> files) {
+        log.info("Iniciando processamento paralelo de {} arquivos", files.size());
 
-        for (int i = 0; i < files.size(); i++) {
-            MultipartFile file = files.get(i);
-            BufferedImage downloaded = null;
-            BufferedImage original = null;
-            BufferedImage processed = null;
-            
-            try {
-                downloaded = ImageIO.read(file.getInputStream());
-                if (downloaded == null) continue;
-
-                // 1. Redimensiona IMEDIATAMENTE (Cap de 1000px)
-                original = imageProcessingService.resizeForProcessing(downloaded);
-                if (downloaded != original) downloaded.flush(); // Libera a original gigante
-
-                // 2. Converte para Sketch (que agora usa TYPE_BYTE_BINARY)
-                processed = imageProcessingService.convertToSketch(original);
-                original.flush(); // Libera a original redimensionada
-
-                // 3. Converte para Bytes para Upload
-                byte[] imageBytes = imageProcessingService.convertToBytes(processed);
-                processed.flush(); // Libera a imagem sketch
-
-                // 4. Upload para Cloudinary
-                String imageUrl = cloudinaryService.uploadImage(imageBytes);
-
-                ImageBooks imageBook = ImageBooks.builder()
-                        .bookId(book)
-                        .imageUrl(imageUrl)
-                        .orderIndex(i)
-                        .build();
-
-                savedImages.add(imageBooksRepository.save(imageBook));
+        // Processa todas as imagens simultaneamente usando CompletableFuture
+        List<CompletableFuture<ImageBooks>> futures = IntStream.range(0, files.size())
+            .mapToObj(i -> CompletableFuture.supplyAsync(() -> {
+                MultipartFile file = files.get(i);
+                BufferedImage downloaded = null;
+                BufferedImage original = null;
+                BufferedImage processed = null;
                 
-                // 5. Sugere GC após cada imagem para limpar buffers de AWT
-                System.gc();
-                
-            } catch (Exception e) {
-                log.error("Error processing file {}: {}", file.getOriginalFilename(), e.getMessage());
-            } finally {
-                if (downloaded != null) downloaded.flush();
-                if (original != null) original.flush();
-                if (processed != null) processed.flush();
-            }
-        }
-        return savedImages;
+                try {
+                    downloaded = ImageIO.read(file.getInputStream());
+                    if (downloaded == null) return null;
+
+                    original = imageProcessingService.resizeForProcessing(downloaded);
+                    if (downloaded != original) downloaded.flush();
+
+                    processed = imageProcessingService.convertToSketch(original);
+                    original.flush();
+
+                    byte[] imageBytes = imageProcessingService.convertToBytes(processed);
+                    processed.flush();
+
+                    String imageUrl = cloudinaryService.uploadImage(imageBytes);
+
+                    return ImageBooks.builder()
+                            .bookId(book)
+                            .imageUrl(imageUrl)
+                            .orderIndex(i)
+                            .build();
+                } catch (Exception e) {
+                    log.error("Erro no processamento da imagem {}: {}", i, e.getMessage());
+                    return null;
+                } finally {
+                    if (downloaded != null) downloaded.flush();
+                    if (original != null) original.flush();
+                    if (processed != null) processed.flush();
+                }
+            }))
+            .collect(Collectors.toList());
+
+        // Aguarda todas as tarefas terminarem (ou dar timeout)
+        List<ImageBooks> results = futures.stream()
+            .map(CompletableFuture::join)
+            .filter(img -> img != null)
+            .collect(Collectors.toList());
+
+        // Salva todos os registros no banco de uma vez
+        log.info("Salvando {} registros de imagens no banco", results.size());
+        return imageBooksRepository.saveAll(results);
     }
 
     public List<ImageBooks> findByBookId(Long bookId) {
