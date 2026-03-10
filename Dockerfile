@@ -17,6 +17,10 @@ RUN apt-get update && apt-get install -y \
     libfreetype6 \
     && rm -rf /var/lib/apt/lists/*
 
+# Import Aiven SSL Certificate into Java TrustStore
+COPY ca.pem /app/ca.pem
+RUN keytool -importcert -alias aiven-ca -file /app/ca.pem -keystore $JAVA_HOME/lib/security/cacerts -storepass changeit -noprompt
+
 COPY --from=build /app/target/*.jar app.jar
 
 # Render uses the PORT environment variable
