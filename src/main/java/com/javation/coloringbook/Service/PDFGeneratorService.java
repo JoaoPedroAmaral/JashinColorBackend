@@ -128,7 +128,7 @@ public class PDFGeneratorService {
             float drawW = pageW + bleed * 2;
             float drawH = pageH + bleed * 2;
 
-            float renderScale = 3.0f;
+            float renderScale = 1.0f;
             PNGTranscoder transcoder = new PNGTranscoder();
             transcoder.addTranscodingHint(SVGAbstractTranscoder.KEY_WIDTH,  drawW * renderScale);
             transcoder.addTranscodingHint(SVGAbstractTranscoder.KEY_HEIGHT, drawH * renderScale);
