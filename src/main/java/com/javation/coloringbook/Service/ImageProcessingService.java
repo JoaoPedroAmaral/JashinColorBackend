@@ -12,11 +12,14 @@ import javax.imageio.ImageIO;
 @Service
 public class ImageProcessingService {
 
-    private static final int THRESHOLD_VALUE = 40;
-    private static final float[] GAUSSIAN_BLUR_KERNEL = {
-            1/16f, 2/16f, 1/16f,
-            2/16f, 4/16f, 2/16f,
-            1/16f, 2/16f, 1/16f
+    // Reduzi o threshold para pegar linhas mais finas e aumentei o contraste
+    private static final int THRESHOLD_VALUE = 30; 
+    
+    // Kernel de Nitidez (Sharpen) para realçar bordas antes do processamento
+    private static final float[] SHARPEN_KERNEL = {
+        0f, -1f, 0f,
+        -1f, 5f, -1f,
+        0f, -1f, 0f
     };
 
     public byte[] convertToBytes(BufferedImage image) throws IOException {
@@ -28,7 +31,7 @@ public class ImageProcessingService {
     }
 
     public BufferedImage resizeForProcessing(BufferedImage original) {
-        int maxDim = 1000; // Aggressive cap for 512MB RAM
+        int maxDim = 1000;
         int w = original.getWidth();
         int h = original.getHeight();
         
@@ -40,7 +43,7 @@ public class ImageProcessingService {
         
         BufferedImage resized = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_RGB);
         java.awt.Graphics2D g = resized.createGraphics();
-        g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         g.drawImage(original, 0, 0, newW, newH, null);
         g.dispose();
         
@@ -49,18 +52,20 @@ public class ImageProcessingService {
 
     public BufferedImage preprocessForVectorization(BufferedImage original) {
         if (original == null) return null;
-
         int w = original.getWidth();
         int h = original.getHeight();
         BufferedImage result = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
-
+        
+        // Algoritmo de limiarização mais "limpo"
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 int rgb = original.getRGB(x, y);
                 int r = (rgb >> 16) & 0xFF;
                 int g = (rgb >> 8) & 0xFF;
                 int b = rgb & 0xFF;
-                int newVal = ((r + g + b) / 3 < 120) ? 0 : 255;
+                // Ponderação real de luminância (Rec. 601)
+                double gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                int newVal = (gray < 140) ? 0 : 255;
                 result.setRGB(x, y, (newVal << 16) | (newVal << 8) | newVal);
             }
         }
@@ -73,34 +78,36 @@ public class ImageProcessingService {
         int width = original.getWidth();
         int height = original.getHeight();
 
+        // 1. Converte para Cinza e Aplica Nitidez
         BufferedImage gray = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
-        java.awt.Graphics g = gray.getGraphics();
-        g.drawImage(original, 0, 0, null);
-        g.dispose();
+        java.awt.Graphics2D g2 = gray.createGraphics();
+        g2.drawImage(original, 0, 0, null);
+        g2.dispose();
 
-        BufferedImage blurred = applyGaussianBlur(gray);
-        gray.flush(); // Free memory immediately
+        // Aplica filtro de nitidez para destacar as linhas
+        BufferedImage sharp = new ConvolveOp(new Kernel(3, 3, SHARPEN_KERNEL)).filter(gray, null);
+        gray.flush();
 
-        int[] edges = applySobel(blurred);
-        blurred.flush(); // Free memory immediately
+        // 2. Extração de Bordas (Sobel Otimizado)
+        int[] edges = applySobel(sharp);
+        sharp.flush();
 
+        // 3. Limpeza com filtro de mediana para remover ruídos pequenos
         int[] cleanEdges = applyMedianFilter(edges, width, height);
 
+        // 4. Criação do resultado final em Binário (Economia extrema de memória)
         BufferedImage result = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_BINARY);
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
+                // Invertemos a lógica: se é borda (edge > threshold), pintamos de PRETO.
                 if (cleanEdges[y * width + x] > THRESHOLD_VALUE) {
-                    result.setRGB(x, y, 0xFF000000); // Black
+                    result.setRGB(x, y, 0); // Preto (0 em TYPE_BYTE_BINARY)
                 } else {
-                    result.setRGB(x, y, 0xFFFFFFFF); // White
+                    result.setRGB(x, y, 1); // Branco (1 em TYPE_BYTE_BINARY)
                 }
             }
         }
         return result;
-    }
-
-    private BufferedImage applyGaussianBlur(BufferedImage src) {
-        return new ConvolveOp(new Kernel(3, 3, GAUSSIAN_BLUR_KERNEL), ConvolveOp.EDGE_NO_OP, null).filter(src, null);
     }
 
     private int[] applySobel(BufferedImage img) {
@@ -109,25 +116,25 @@ public class ImageProcessingService {
         int[] pixels = new int[w * h];
         int[] out = new int[w * h];
 
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                pixels[y * w + x] = img.getRGB(x, y) & 0xFF;
-            }
-        }
+        // Copia rápida de pixels
+        img.getRaster().getSamples(0, 0, w, h, 0, pixels);
 
         for (int y = 1; y < h - 1; y++) {
+            int offset = y * w;
             for (int x = 1; x < w - 1; x++) {
-                int p00 = pixels[(y - 1) * w + (x - 1)];
-                int p02 = pixels[(y - 1) * w + (x + 1)];
-                int p10 = pixels[y * w + (x - 1)];
-                int p12 = pixels[y * w + (x + 1)];
-                int p20 = pixels[(y + 1) * w + (x - 1)];
-                int p22 = pixels[(y + 1) * w + (x + 1)];
+                int p00 = pixels[offset - w + x - 1];
+                int p02 = pixels[offset - w + x + 1];
+                int p10 = pixels[offset + x - 1];
+                int p12 = pixels[offset + x + 1];
+                int p20 = pixels[offset + w + x - 1];
+                int p22 = pixels[offset + w + x + 1];
 
-                int gx = (-1 * p00) + p02 + (-2 * p10) + (2 * p12) + (-1 * p20) + p22;
-                int gy = (-1 * p00) + (-2 * pixels[(y - 1) * w + x]) + (-1 * p02) + p20 + (2 * pixels[(y + 1) * w + x]) + p22;
+                // Sobel kernels
+                int gx = (p02 + 2 * p12 + p22) - (p00 + 2 * p10 + p20);
+                int gy = (p20 + 2 * pixels[offset + w + x] + p22) - (p00 + 2 * pixels[offset - w + x] + p02);
 
-                out[y * w + x] = (int) Math.min(255, Math.sqrt(gx * gx + gy * gy));
+                int mag = (int) Math.sqrt(gx * gx + gy * gy);
+                out[offset + x] = Math.min(255, mag);
             }
         }
         return out;
@@ -138,15 +145,20 @@ public class ImageProcessingService {
         int[] neighborhood = new int[9];
 
         for (int y = 1; y < height - 1; y++) {
+            int offset = y * width;
             for (int x = 1; x < width - 1; x++) {
-                int k = 0;
-                for (int dy = -1; dy <= 1; dy++) {
-                    for (int dx = -1; dx <= 1; dx++) {
-                        neighborhood[k++] = edges[(y + dy) * width + (x + dx)];
-                    }
-                }
+                neighborhood[0] = edges[offset - width + x - 1];
+                neighborhood[1] = edges[offset - width + x];
+                neighborhood[2] = edges[offset - width + x + 1];
+                neighborhood[3] = edges[offset + x - 1];
+                neighborhood[4] = edges[offset + x];
+                neighborhood[5] = edges[offset + x + 1];
+                neighborhood[6] = edges[offset + width + x - 1];
+                neighborhood[7] = edges[offset + width + x];
+                neighborhood[8] = edges[offset + width + x + 1];
+
                 Arrays.sort(neighborhood);
-                result[y * width + x] = neighborhood[4];
+                result[offset + x] = neighborhood[4];
             }
         }
         return result;
