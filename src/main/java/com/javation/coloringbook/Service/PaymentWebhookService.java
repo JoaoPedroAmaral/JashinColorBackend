@@ -76,8 +76,8 @@ public class PaymentWebhookService {
 
     @Transactional
     protected void confirmBookPayment(Long bookId, String transactionId) throws Exception {
-        // Busca o livro com lock para evitar que dois processos tentem criar o pagamento ao mesmo tempo
-        Books book = booksRepository.findById(bookId)
+        // Busca o livro com LOCK PESSIMISTA para evitar deadlocks e race conditions
+        Books book = booksRepository.findByIdWithLock(bookId)
                 .orElseThrow(() -> new RuntimeException("Book not found: " + bookId));
 
         if (book.getStatusPay() == BookPaymentStatus.PAID) {

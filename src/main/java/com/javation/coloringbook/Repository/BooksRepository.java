@@ -9,9 +9,16 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
+
 @Repository
 public interface BooksRepository extends JpaRepository<Books, Long> {
     List<Books> findBookByUserId(Long userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT b FROM Books b WHERE b.id = :id")
+    Optional<Books> findByIdWithLock(@Param("id") Long id);
 
     @Query("SELECT b FROM Books b LEFT JOIN FETCH b.images WHERE b.id = :id")
     Optional<Books> findByIdWithImages(@Param("id") Long id);
