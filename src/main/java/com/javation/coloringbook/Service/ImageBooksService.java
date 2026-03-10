@@ -31,14 +31,27 @@ public class ImageBooksService {
 
         for (int i = 0; i < files.size(); i++) {
             MultipartFile file = files.get(i);
+            BufferedImage downloaded = null;
+            BufferedImage original = null;
+            BufferedImage processed = null;
+            
             try {
-                BufferedImage original = ImageIO.read(file.getInputStream());
-                BufferedImage processed = imageProcessingService.convertToSketch(original);
+                downloaded = ImageIO.read(file.getInputStream());
+                if (downloaded == null) continue;
 
-                ByteArrayOutputStream os = new ByteArrayOutputStream();
-                ImageIO.write(processed, "png", os);
-                byte[] imageBytes = os.toByteArray();
+                // 1. Redimensiona IMEDIATAMENTE (Cap de 1000px)
+                original = imageProcessingService.resizeForProcessing(downloaded);
+                if (downloaded != original) downloaded.flush(); // Libera a original gigante
 
+                // 2. Converte para Sketch (que agora usa TYPE_BYTE_BINARY)
+                processed = imageProcessingService.convertToSketch(original);
+                original.flush(); // Libera a original redimensionada
+
+                // 3. Converte para Bytes para Upload
+                byte[] imageBytes = imageProcessingService.convertToBytes(processed);
+                processed.flush(); // Libera a imagem sketch
+
+                // 4. Upload para Cloudinary
                 String imageUrl = cloudinaryService.uploadImage(imageBytes);
 
                 ImageBooks imageBook = ImageBooks.builder()
@@ -48,8 +61,16 @@ public class ImageBooksService {
                         .build();
 
                 savedImages.add(imageBooksRepository.save(imageBook));
+                
+                // 5. Sugere GC após cada imagem para limpar buffers de AWT
+                System.gc();
+                
             } catch (Exception e) {
                 log.error("Error processing file {}: {}", file.getOriginalFilename(), e.getMessage());
+            } finally {
+                if (downloaded != null) downloaded.flush();
+                if (original != null) original.flush();
+                if (processed != null) processed.flush();
             }
         }
         return savedImages;
