@@ -93,6 +93,9 @@ public class PDFGeneratorService {
                         cb.addImage(img);
                     }
                     cb.restoreState();
+                    
+                    // Manually trigger GC to free up memory from large image processing
+                    System.gc();
                 } catch (Exception e) {
                     log.error("Page error ({}): {}", imageBook.getImageUrl(), e.getMessage());
                 }
