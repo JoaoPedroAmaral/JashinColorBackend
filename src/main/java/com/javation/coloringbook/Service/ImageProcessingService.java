@@ -28,7 +28,7 @@ public class ImageProcessingService {
     }
 
     public BufferedImage resizeForProcessing(BufferedImage original) {
-        int maxDim = 800; // Aggressive cap for 512MB RAM
+        int maxDim = 1000; // Aggressive cap for 512MB RAM
         int w = original.getWidth();
         int h = original.getHeight();
 
