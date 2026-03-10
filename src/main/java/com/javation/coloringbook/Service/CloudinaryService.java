@@ -16,7 +16,13 @@ public class CloudinaryService {
 
     public String uploadPdf(byte[] pdfBytes, String fileName) throws IOException {
         Map uploadResult = cloudinary.uploader().upload(pdfBytes,
-                ObjectUtils.asMap("resource_type", "auto", "public_id", fileName));
+                ObjectUtils.asMap("resource_type", "raw", "public_id", fileName));
+        return (String) uploadResult.get("secure_url");
+    }
+
+    public String uploadPdf(java.io.File file, String fileName) throws IOException {
+        Map uploadResult = cloudinary.uploader().upload(file,
+                ObjectUtils.asMap("resource_type", "raw", "public_id", fileName));
         return (String) uploadResult.get("secure_url");
     }
 

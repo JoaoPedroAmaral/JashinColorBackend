@@ -20,6 +20,8 @@ import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.List;
@@ -35,13 +37,12 @@ public class PDFGeneratorService {
     private final ImageProcessingService imageProcessingService;
     private final VectorizationService vectorizationService;
 
-    public byte[] generatePdfFromImageUrls(List<ImageBooks> images, String title) throws Exception {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
+    public File generatePdfToFile(List<ImageBooks> images, String title) throws Exception {
+        File tempFile = File.createTempFile("book_", ".pdf");
+        FileOutputStream out = new FileOutputStream(tempFile);
 
         Document document = new Document(PageSize.A4.rotate(), 0, 0, 0, 0);
-
         String set = new Random().nextBoolean() ? "1" : "2";
-        log.info("Using cover set: {}", set);
 
         try {
             PdfWriter writer = PdfWriter.getInstance(document, out);
@@ -54,8 +55,11 @@ public class PDFGeneratorService {
 
             for (ImageBooks imageBook : images) {
                 try {
-                    BufferedImage original = ImageIO.read(new URL(imageBook.getImageUrl()));
-                    if (original == null) continue;
+                    BufferedImage downloaded = ImageIO.read(new URL(imageBook.getImageUrl()));
+                    if (downloaded == null) continue;
+
+                    BufferedImage original = imageProcessingService.resizeForProcessing(downloaded);
+                    if (downloaded != original) downloaded.flush();
 
                     BufferedImage pre = imageProcessingService.preprocessForVectorization(original);
                     List<VectorizationService.SimplifiedContour> contours = vectorizationService.getSimplifiedContours(pre);
@@ -91,8 +95,14 @@ public class PDFGeneratorService {
                         img.scaleAbsolute(sW, sH);
                         img.setAbsolutePosition(0, 0);
                         cb.addImage(img);
+                        sketch.flush();
                     }
+                    
                     cb.restoreState();
+                    pre.flush();
+                    original.flush();
+                    
+                    System.gc();
                 } catch (Exception e) {
                     log.error("Page error ({}): {}", imageBook.getImageUrl(), e.getMessage());
                 }
@@ -101,13 +111,25 @@ public class PDFGeneratorService {
             addSvgFullPage(document, writer, "/DefaultPage/" + set + "Contra.svg");
 
             document.close();
+            out.flush();
+            out.close();
         } catch (Exception e) {
             if (document.isOpen()) document.close();
+            out.close();
+            tempFile.delete();
             throw e;
         }
-        return out.toByteArray();
+        return tempFile;
     }
 
+    public byte[] generatePdfFromImageUrls(List<ImageBooks> images, String title) throws Exception {
+        File file = generatePdfToFile(images, title);
+        byte[] bytes = java.nio.file.Files.readAllBytes(file.toPath());
+        if (!file.delete()) {
+            file.deleteOnExit();
+        }
+        return bytes;
+    }
 
     private void addSvgFullPage(Document document, PdfWriter writer, String classpathResource) {
         document.setMargins(0, 0, 0, 0);
@@ -128,7 +150,7 @@ public class PDFGeneratorService {
             float drawW = pageW + bleed * 2;
             float drawH = pageH + bleed * 2;
 
-            float renderScale = 3.0f;
+            float renderScale = 1.0f;
             PNGTranscoder transcoder = new PNGTranscoder();
             transcoder.addTranscodingHint(SVGAbstractTranscoder.KEY_WIDTH,  drawW * renderScale);
             transcoder.addTranscodingHint(SVGAbstractTranscoder.KEY_HEIGHT, drawH * renderScale);

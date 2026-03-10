@@ -42,23 +42,36 @@ public class AsyncPDFService {
 
             log.info("Generating PDF with {} images for book {}", images.size(), bookId);
             String bookTitle = "Livro de Colorir - " + book.getUser().getEmail();
-            byte[] pdfBytes = pdfGeneratorService.generatePdfFromImageUrls(images, bookTitle);
+            
+            // Gera o PDF diretamente para um arquivo temporário (economiza MUITA RAM)
+            java.io.File pdfFile = pdfGeneratorService.generatePdfToFile(images, bookTitle);
 
-            if (pdfBytes == null || pdfBytes.length == 0) {
-                throw new RuntimeException("Generated PDF is empty for book " + bookId);
+            if (pdfFile == null || !pdfFile.exists() || pdfFile.length() == 0) {
+                throw new RuntimeException("Generated PDF file is empty or missing for book " + bookId);
             }
 
-            log.info("PDF generated successfully ({} bytes). Uploading to Cloudinary...", pdfBytes.length);
-            // Opcional: Upload para o Cloudinary se você quiser um link externo
+            log.info("PDF generated successfully ({} bytes). Uploading to Cloudinary...", pdfFile.length());
+            
             try {
-                String cloudinaryUrl = cloudinaryService.uploadPdf(pdfBytes, "livro_" + bookId);
+                // Upload para o Cloudinary usando o arquivo (streaming)
+                String cloudinaryUrl = cloudinaryService.uploadPdf(pdfFile, "livro_" + bookId);
                 log.info("PDF uploaded to Cloudinary: {}", cloudinaryUrl);
+                
+                // Opcional: Se ainda quiser salvar o PDF no banco, leia os bytes aqui.
+                // Mas para livros grandes, o Cloudinary é melhor.
+                if (pdfFile.length() < 10 * 1024 * 1024) { // Só salva no DB se for < 10MB
+                    byte[] pdfBytes = java.nio.file.Files.readAllBytes(pdfFile.toPath());
+                    book.setDownloadUrl(pdfBytes);
+                }
             } catch (Exception e) {
-                log.warn("Cloudinary upload failed (non-critical): {}", e.getMessage());
+                log.warn("Cloudinary upload failed: {}", e.getMessage());
+            } finally {
+                // Deleta o arquivo temporário imediatamente
+                if (!pdfFile.delete()) {
+                    pdfFile.deleteOnExit();
+                }
             }
 
-            // Salva o PDF no banco de dados
-            book.setDownloadUrl(pdfBytes);
             book.setStatusPay(BookPaymentStatus.PAID);
             booksRepository.saveAndFlush(book);
 
