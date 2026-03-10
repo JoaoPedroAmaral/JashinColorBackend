@@ -14,13 +14,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -35,43 +33,29 @@ public class AuthController {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
 
-    /**
-     * Login - Retorna JWT token
-     */
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
         try {
-            // Autenticar usuário
-            Authentication authentication = authenticationManager.authenticate(
+            authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             loginRequest.getEmail(),
                             loginRequest.getPassword()
                     )
             );
 
-            // Carregar detalhes do usuário
             UserDetails userDetails = userDetailsService.loadUserByUsername(loginRequest.getEmail());
-
-            // Gerar token JWT
             String token = jwtUtil.generateToken(userDetails.getUsername());
-
-            // Buscar dados do usuário
             Users user = userService.findUserByEmail(loginRequest.getEmail());
 
-            // Retornar resposta
-            AuthResponse response = AuthResponse.builder()
+            return ResponseEntity.ok(AuthResponse.builder()
                     .token(token)
                     .type("Bearer")
                     .userId(user.getId())
                     .email(user.getEmail())
                     .message("Login realizado com sucesso")
-                    .build();
-
-            log.info("Login bem-sucedido para usuário: {}", loginRequest.getEmail());
-            return ResponseEntity.ok(response);
+                    .build());
 
         } catch (BadCredentialsException e) {
-            log.warn("Tentativa de login falhou para: {}", loginRequest.getEmail());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Email ou senha incorretos"));
         } catch (Exception e) {
@@ -81,42 +65,28 @@ public class AuthController {
         }
     }
 
-    /**
-     * Registro - Cria novo usuário e retorna JWT token
-     */
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest registerRequest) {
         try {
-            // Verificar se usuário já existe
-            try {
-                userService.findUserByEmail(registerRequest.getEmail());
+            if (userService.existsByEmail(registerRequest.getEmail())) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                         .body(Map.of("error", "Email já cadastrado"));
-            } catch (IllegalArgumentException e) {
-                // Email não existe, continuar registro
             }
 
-            // Criar novo usuário
             Users newUser = new Users();
             newUser.setEmail(registerRequest.getEmail());
             newUser.setPasswordHash(passwordEncoder.encode(registerRequest.getPassword()));
 
             Users savedUser = userService.createUser(newUser);
-
-            // Gerar token JWT
             String token = jwtUtil.generateToken(savedUser.getEmail());
 
-            // Retornar resposta
-            AuthResponse response = AuthResponse.builder()
+            return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponse.builder()
                     .token(token)
                     .type("Bearer")
                     .userId(savedUser.getId())
                     .email(savedUser.getEmail())
                     .message("Usuário criado com sucesso")
-                    .build();
-
-            log.info("Novo usuário registrado: {}", savedUser.getEmail());
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+                    .build());
 
         } catch (Exception e) {
             log.error("Erro no registro: ", e);
@@ -125,9 +95,6 @@ public class AuthController {
         }
     }
 
-    /**
-     * Validar token - Endpoint para frontend verificar se token é válido
-     */
     @GetMapping("/validate")
     public ResponseEntity<?> validateToken(@RequestHeader("Authorization") String authHeader) {
         try {
@@ -145,19 +112,14 @@ public class AuthController {
                     ));
                 }
             }
-
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("valid", false, "error", "Token inválido"));
-
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("valid", false, "error", "Token inválido"));
         }
     }
 
-    /**
-     * Refresh token - Gera novo token antes de expirar
-     */
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(@RequestHeader("Authorization") String authHeader) {
         try {
@@ -174,10 +136,8 @@ public class AuthController {
                     ));
                 }
             }
-
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Token inválido"));
-
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Erro ao renovar token"));

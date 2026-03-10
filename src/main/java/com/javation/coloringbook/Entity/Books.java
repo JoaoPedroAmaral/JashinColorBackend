@@ -21,6 +21,9 @@ public class Books {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "title")
+    private String title;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private Users user;
@@ -34,6 +37,9 @@ public class Books {
 
     @Column(name = "total_pages")
     private Integer totalPages;
+
+    @Column(name = "price")
+    private Double price;
 
     @Column(name = "download_url", columnDefinition = "LONGBLOB")
     private byte[] downloadUrl;

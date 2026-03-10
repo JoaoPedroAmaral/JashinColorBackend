@@ -1,0 +1,13 @@
+target/
+*.class
+*.jar
+.git/
+.idea/
+*.iml
+.mvn/
+mvnw
+mvnw.cmd
+Dockerfile
+.dockerignore
+bin/
+obj/

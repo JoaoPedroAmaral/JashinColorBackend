@@ -2,6 +2,7 @@ package com.javation.coloringbook.Entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -10,6 +11,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name="users")
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class Users {
@@ -27,4 +29,3 @@ public class Users {
     @Column(name = "create_at")
     private LocalDateTime createAt = LocalDateTime.now();
 }
-

@@ -23,13 +23,21 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(user);
     }
 
-    @GetMapping("/user/id/{userId}")
-    public ResponseEntity<Users> getUserById (@PathVariable long userId){
+    @GetMapping("/{userId}")
+    public ResponseEntity<Users> getUserById(@PathVariable Long userId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String currentEmail = authentication.getName();
+        Users currentUser = userService.findUserByEmail(currentEmail);
+
+        if (!currentUser.getId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
         Users user = userService.findUserById(userId);
         return ResponseEntity.ok(user);
     }
 
-    @GetMapping("/user/email/{userEmail}")
+    @GetMapping("/email/{userEmail}")
     public ResponseEntity<Users> getUserByEmail(@PathVariable String userEmail){
         Users user = userService.findUserByEmail(userEmail);
         return ResponseEntity.ok(user);
@@ -42,23 +50,4 @@ public class UserController {
         Users user = userService.findUserByEmail(email);
         return ResponseEntity.ok(user);
     }
-
-    /**
-     * Obter usuário por ID (apenas para admins ou próprio usuário)
-     */
-    @GetMapping("/{userId}")
-    public ResponseEntity<Users> getUserById(@PathVariable Long userId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String currentEmail = authentication.getName();
-        Users currentUser = userService.findUserByEmail(currentEmail);
-
-        // Permitir apenas se for o próprio usuário
-        if (!currentUser.getId().equals(userId)) {
-            return ResponseEntity.status(403).build();
-        }
-
-        Users user = userService.findUserById(userId);
-        return ResponseEntity.ok(user);
-    }
-
 }

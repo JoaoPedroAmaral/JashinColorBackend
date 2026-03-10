@@ -1,6 +1,7 @@
 package com.javation.coloringbook.Security;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -29,41 +30,32 @@ public class SecurityConfig {
     private final JwtRequestFilter jwtRequestFilter;
     private final UserDetailsService userDetailsService;
 
+    @Value("${cors.allowed.origins}")
+    private String corsAllowedOrigins;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // CSRF desabilitado (API REST usa JWT)
                 .csrf(csrf -> csrf.disable())
-
-                // CORS configurado
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-                // Política de sessão STATELESS (sem sessões no servidor)
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
-
-                // Autorização de requisições
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Endpoints públicos (sem autenticação)
                         .requestMatchers(
-                                "/api/auth/**",                          // Login, registro
-                                "/api/payments/webhook/**",              // Webhooks (MP, Stripe, etc)
-                                "/api/payments/calculate-price"          // Cálculo de preço
-                        ).permitAll()
+                                "/api/auth/**",
+                                "/api/payments/webhook/**",
+                                "/api/payments/success",
+                                "/api/payments/failure",
+                                "/api/payments/pending"
 
-                        // Endpoints protegidos (requerem autenticação)
+                        ).permitAll()
                         .requestMatchers(
                                 "/api/users/**",
                                 "/api/books/**",
-                                "/api/payments/**"
+                                "/api/payments/**",
+                                "/api/checkout/**"
                         ).authenticated()
-
-                        // Qualquer outra requisição requer autenticação
                         .anyRequest().authenticated()
                 )
-
-                // Adicionar filtro JWT antes do filtro de autenticação padrão
                 .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -90,11 +82,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:3000",
-                "http://localhost:5173",
-                "https://seu-dominio.com"
-        ));
+        List<String> allowedOrigins = Arrays.asList(corsAllowedOrigins.split(","));
+        configuration.setAllowedOrigins(allowedOrigins);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
